@@ -13,17 +13,66 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 /* ── Top Bar ── */
 .top-bar{
   position:fixed;top:0;left:0;right:0;z-index:2000;
-  background:linear-gradient(135deg,rgba(20,20,40,0.94),rgba(30,30,55,0.94));
-  backdrop-filter:blur(16px);border-bottom:1px solid rgba(99,179,237,0.15);
-  padding:12px 20px;display:flex;align-items:center;justify-content:space-between;
+  background:linear-gradient(135deg,rgba(20,20,40,0.96),rgba(30,30,58,0.96));
+  backdrop-filter:blur(16px);border-bottom:1px solid rgba(99,179,237,0.12);
+  padding:10px 16px;display:flex;align-items:center;gap:0;
 }
-.top-bar h1{font-size:18px;font-weight:700;color:#e2e8f0}
+.top-bar h1{font-size:17px;font-weight:700;color:#e2e8f0;white-space:nowrap;flex-shrink:0;margin-right:14px}
 .top-bar h1 .accent{color:#63b3ed}
-.top-bar .status-tag{font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px}
+@media(max-width:640px){.top-bar h1{font-size:14px;margin-right:8px}}
+
+/* ── Search Box ── */
+.search-wrap{position:relative;flex:1;max-width:360px;min-width:0}
+.search-input{
+  width:100%;padding:8px 14px;border-radius:20px;
+  background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);
+  color:#e2e8f0;font-size:13px;font-family:inherit;outline:none;
+  transition:border-color .2s,background .2s;
+}
+.search-input::placeholder{color:#64748b}
+.search-input:focus{border-color:#63b3ed;background:rgba(255,255,255,0.12)}
+.search-input:focus::placeholder{color:#475569}
+.search-clear{
+  position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:#64748b;font-size:16px;cursor:pointer;
+  display:none;line-height:1;padding:4px;border-radius:50%;
+}
+.search-clear:hover{color:#e2e8f0;background:rgba(255,255,255,0.06)}
+.search-clear.visible{display:block}
+
+/* ── Search Dropdown ── */
+.search-dropdown{
+  position:absolute;top:100%;left:0;right:0;margin-top:6px;
+  background:rgba(20,20,44,0.96);backdrop-filter:blur(16px);
+  border-radius:12px;border:1px solid rgba(99,179,237,0.15);
+  box-shadow:0 12px 40px rgba(0,0,0,0.5);
+  overflow:hidden;display:none;z-index:2100;
+}
+.search-dropdown.open{display:block}
+.search-dropdown .dd-header{
+  padding:8px 14px;font-size:11px;color:#64748b;
+  text-transform:uppercase;letter-spacing:0.5px;
+  border-bottom:1px solid rgba(255,255,255,0.05);
+}
+.search-item{
+  padding:10px 14px;cursor:pointer;font-size:13px;color:#cbd5e0;
+  border-bottom:1px solid rgba(255,255,255,0.03);transition:background .15s;
+  display:flex;align-items:center;gap:8px;
+}
+.search-item:last-child{border-bottom:none}
+.search-item:hover{background:rgba(99,179,237,0.08);color:#f1f5f9}
+.search-item .si-icon{font-size:16px;flex-shrink:0}
+.search-item .si-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search-item .si-type{font-size:10px;color:#64748b;background:rgba(255,255,255,0.04);padding:2px 6px;border-radius:4px;flex-shrink:0}
+.search-dropdown .dd-loading{padding:14px;text-align:center;color:#64748b;font-size:12px}
+
+/* ── Status tag ── */
+.status-tag{font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto}
 .status-dot{width:8px;height:8px;border-radius:50%;background:#68d391}
 .status-dot.loading{background:#f6e05e;animation:pulse .8s infinite}
 .status-dot.error{background:#fc8181}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@media(max-width:840px){.status-tag{display:none}}
 
 /* ── Filter Panel ── */
 .filter-panel{
@@ -100,8 +149,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 @keyframes spin{to{transform:rotate(360deg)}}
 
 @media(max-width:640px){
-  .top-bar{padding:10px 14px}
-  .top-bar h1{font-size:15px}
+  .top-bar{padding:8px 10px}
+  .search-wrap{max-width:200px}
+  .search-input{font-size:12px;padding:7px 12px}
   .filter-panel{top:78px;left:6px;padding:8px 10px;gap:2px}
   .filter-row{font-size:12px;padding:2px 0}
   .result-panel{top:78px;right:6px;width:185px}
@@ -118,10 +168,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 
 <!-- Top Bar -->
 <div class="top-bar">
-  <h1>📍 西安<span class="accent">生活便利指数</span>地图</h1>
+  <h1>📍 西安<span class="accent">生活便利指数</span></h1>
+  <div class="search-wrap" id="searchWrap">
+    <input class="search-input" id="searchInput" type="text"
+      placeholder="搜索地址，如：钟楼、大雁塔、高新路…" autocomplete="off">
+    <button class="search-clear" id="searchClear" title="清除">×</button>
+    <div class="search-dropdown" id="searchDropdown"></div>
+  </div>
   <div class="status-tag" id="statusTag">
     <span class="status-dot" id="statusDot"></span>
-    <span id="statusText">就绪 — 点击地图开始分析</span>
+    <span id="statusText">就绪</span>
   </div>
 </div>
 
@@ -154,7 +210,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 <div class="result-panel" id="resultPanel">
   <div class="result-header">
     <div class="grade" id="gradeLetter">--</div>
-    <div class="grade-label" id="gradeLabel">点击地图开始分析</div>
+    <div class="grade-label" id="gradeLabel">点击地图或搜索地址</div>
     <div class="loading-spin" id="loadingSpin"></div>
   </div>
   <div class="result-body">
@@ -170,7 +226,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 </div>
 
 <!-- Status Bar -->
-<div class="status-bar" id="statusBar">👆 点击地图任意位置，分析周边 500 米生活便利度</div>
+<div class="status-bar" id="statusBar">👆 点击地图任意位置，或搜索地址自动定位</div>
 
 <!-- Map -->
 <div id="map"></div>
@@ -179,60 +235,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 
 <script>
 // ═══════════════════════════════════════
-// WGS-84 ↔ GCJ-02 Coordinate Conversion
-// Amap tiles use GCJ-02; Overpass returns WGS-84.
-// ═══════════════════════════════════════
-const PI = Math.PI;
-const A = 6378245.0;
-const EE = 0.00669342162296594323;
-
-function _transformLat(x, y) {
-  let r = -100 + 2*x + 3*y + 0.2*y*y + 0.1*x*y + 0.2*Math.sqrt(Math.abs(x));
-  r += (20*Math.sin(6*x*PI) + 20*Math.sin(2*x*PI)) * 2/3;
-  r += (20*Math.sin(y*PI) + 40*Math.sin(y/3*PI)) * 2/3;
-  r += (160*Math.sin(y/12*PI) + 320*Math.sin(y*PI/30)) * 2/3;
-  return r;
-}
-
-function _transformLng(x, y) {
-  let r = 300 + x + 2*y + 0.1*x*x + 0.1*x*y + 0.1*Math.sqrt(Math.abs(x));
-  r += (20*Math.sin(6*x*PI) + 20*Math.sin(2*x*PI)) * 2/3;
-  r += (20*Math.sin(x*PI) + 40*Math.sin(x/3*PI)) * 2/3;
-  r += (150*Math.sin(x/12*PI) + 300*Math.sin(x/30*PI)) * 2/3;
-  return r;
-}
-
-function wgs84ToGcj02(lat, lng) {
-  if (lat < 0.01 || lng < 0.01) return [lat, lng];
-  const dLat = _transformLat(lng - 105, lat - 35);
-  const dLng = _transformLng(lng - 105, lat - 35);
-  const radLat = lat / 180 * PI;
-  let magic = Math.sin(radLat);
-  magic = 1 - EE * magic * magic;
-  const sqrtMagic = Math.sqrt(magic);
-  const dLatF = (dLat * 180) / ((A * (1 - EE)) / (magic * sqrtMagic) * PI);
-  const dLngF = (dLng * 180) / (A / sqrtMagic * Math.cos(radLat) * PI);
-  return [lat + dLatF, lng + dLngF];
-}
-
-function gcj02ToWgs84(lat, lng) {
-  const [gLat, gLng] = wgs84ToGcj02(lat, lng);
-  const dLat = gLat - lat;
-  const dLng = gLng - lng;
-  let wLat = lat - dLat;
-  let wLng = lng - dLng;
-  for (let i = 0; i < 3; i++) {
-    const [cLat, cLng] = wgs84ToGcj02(wLat, wLng);
-    wLat -= cLat - lat;
-    wLng -= cLng - lng;
-  }
-  return [wLat, wLng];
-}
-
-// ═══════════════════════════════════════
 // Category Config
 // ═══════════════════════════════════════
-const CATEGORIES = [
+var CATEGORIES = [
   {
     id: 'supermarket', name: '超市', color: '#f97316',
     osmTags: { shop: ['supermarket','convenience'] },
@@ -262,18 +267,18 @@ const CATEGORIES = [
 // ═══════════════════════════════════════
 // Overpass — multi-endpoint with fallback
 // ═══════════════════════════════════════
-const OVERPASS_ENDPOINTS = [
+var OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
-const FETCH_TIMEOUT = 8000;
+var FETCH_TIMEOUT = 8000;
 
 function buildRadiusQuery(lat, lng, enabledCats) {
-  const parts = [];
-  enabledCats.forEach(cat => {
-    Object.entries(cat.osmTags).forEach(([key, values]) => {
-      values.forEach(v => {
+  var parts = [];
+  enabledCats.forEach(function(cat) {
+    Object.keys(cat.osmTags).forEach(function(key) {
+      cat.osmTags[key].forEach(function(v) {
         parts.push('node["' + key + '"="' + v + '"](around:500,' + lat + ',' + lng + ');');
         if (cat.id === 'park') {
           parts.push('way["' + key + '"="' + v + '"](around:500,' + lat + ',' + lng + ');');
@@ -291,20 +296,23 @@ function getCoord(el) {
 }
 
 function categorizeOSM(el, enabledCats) {
-  const t = el.tags || {};
-  for (const cat of enabledCats) {
-    for (const [key, values] of Object.entries(cat.osmTags)) {
-      if (t[key] && values.includes(t[key])) return cat.id;
+  var t = el.tags || {};
+  for (var i = 0; i < enabledCats.length; i++) {
+    var cat = enabledCats[i];
+    var keys = Object.keys(cat.osmTags);
+    for (var j = 0; j < keys.length; j++) {
+      var key = keys[j];
+      if (t[key] && cat.osmTags[key].indexOf(t[key]) >= 0) return cat.id;
     }
   }
   return null;
 }
 
 async function queryOneEndpoint(endpoint, query) {
-  const controller = new AbortController();
-  const timer = setTimeout(function() { controller.abort(); }, FETCH_TIMEOUT);
+  var controller = new AbortController();
+  var timer = setTimeout(function() { controller.abort(); }, FETCH_TIMEOUT);
   try {
-    const resp = await fetch(endpoint, {
+    var resp = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: 'data=' + encodeURIComponent(query),
@@ -318,21 +326,21 @@ async function queryOneEndpoint(endpoint, query) {
   }
 }
 
-async function queryOverpass(wgsLat, wgsLng) {
-  const enabledCats = CATEGORIES.filter(function(c) {
-    return getEnabledCategories().includes(c.id);
+async function queryOverpass(lat, lng) {
+  var enabledCats = CATEGORIES.filter(function(c) {
+    return getEnabledCategories().indexOf(c.id) >= 0;
   });
   if (enabledCats.length === 0) return {};
 
-  var cacheKey = 'poi_' + wgsLat.toFixed(4) + '_' + wgsLng.toFixed(4) + '_' + enabledCats.map(function(c){return c.id}).join(',');
+  var cacheKey = 'poi_' + lat.toFixed(4) + '_' + lng.toFixed(4) + '_' + enabledCats.map(function(c){return c.id}).join(',');
   try {
     var cached = sessionStorage.getItem(cacheKey);
     if (cached) { console.log('[Cache] Hit'); return JSON.parse(cached); }
   } catch(e) {}
 
-  var query = buildRadiusQuery(wgsLat, wgsLng, enabledCats);
-
+  var query = buildRadiusQuery(lat, lng, enabledCats);
   var lastErr = null;
+
   for (var i = 0; i < OVERPASS_ENDPOINTS.length; i++) {
     var endpoint = OVERPASS_ENDPOINTS[i];
     try {
@@ -427,19 +435,18 @@ function onFilterChange() {
 }
 
 // ═══════════════════════════════════════
-// Map Setup
+// Map Setup — GeoQ tiles (WGS-84, free, fast in China)
 // ═══════════════════════════════════════
-var XIAN_CENTER_GCJ = [34.26, 108.94];
+var XIAN_CENTER = [34.26, 108.94];
 
 var map = L.map('map', {
-  center: XIAN_CENTER_GCJ,
+  center: XIAN_CENTER,
   zoom: 13,
   zoomControl: false,
   attributionControl: false,
 });
 
-L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-  subdomains: '1234',
+L.tileLayer('https://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineCommunity/MapServer/tile/{z}/{y}/{x}', {
   maxZoom: 18,
   minZoom: 3,
 }).addTo(map);
@@ -469,8 +476,7 @@ function showPOIMarkers(data) {
     var cat = CATEGORIES.find(function(c) { return c.id === catId; });
     if (!cat) return;
     (data[catId] || []).forEach(function(f) {
-      var gcj = wgs84ToGcj02(f.lat, f.lng);
-      var m = L.circleMarker([gcj[0], gcj[1]], {
+      var m = L.circleMarker([f.lat, f.lng], {
         radius: 4,
         fillColor: cat.color,
         color: cat.color,
@@ -490,7 +496,7 @@ function showPOIMarkers(data) {
 function resetResultPanel() {
   document.getElementById('gradeLetter').textContent = '--';
   document.getElementById('gradeLetter').className = 'grade';
-  document.getElementById('gradeLabel').textContent = '点击地图开始分析';
+  document.getElementById('gradeLabel').textContent = '点击地图或搜索地址';
   document.getElementById('rSupermarket').textContent = '--';
   document.getElementById('rBus').textContent = '--';
   document.getElementById('rRestaurant').textContent = '--';
@@ -532,21 +538,17 @@ function showError(msg) {
 }
 
 // ═══════════════════════════════════════
-// Click Handler
+// Core analysis routine (shared by click & search)
 // ═══════════════════════════════════════
 var analysisBusy = false;
 
-async function handleMapClick(e) {
+async function analyzeLocation(lat, lng, label) {
   if (analysisBusy) return;
-
-  var gcjLat = e.latlng.lat;
-  var gcjLng = e.latlng.lng;
-
-  var wgs = gcj02ToWgs84(gcjLat, gcjLng);
+  analysisBusy = true;
 
   clearAnalysisVisuals();
 
-  currentCircle = L.circle([gcjLat, gcjLng], {
+  currentCircle = L.circle([lat, lng], {
     radius: 500,
     color: '#63b3ed',
     fillColor: '#63b3ed',
@@ -555,7 +557,7 @@ async function handleMapClick(e) {
     dashArray: '6 4',
   }).addTo(map);
 
-  currentClickMarker = L.circleMarker([gcjLat, gcjLng], {
+  currentClickMarker = L.circleMarker([lat, lng], {
     radius: 6,
     fillColor: '#fff',
     color: '#63b3ed',
@@ -564,14 +566,13 @@ async function handleMapClick(e) {
   }).addTo(map);
 
   setLoadingState(true);
-  setStatus('loading', '正在查询周边 POI…');
-  document.getElementById('statusBar').textContent = '⏳ 正在分析 (' + gcjLat.toFixed(4) + ', ' + gcjLng.toFixed(4) + ') …';
+  setStatus('loading', '正在查询…');
+  document.getElementById('statusBar').textContent = '⏳ 正在分析 ' + label + ' …';
   document.getElementById('resultPanel').classList.add('visible');
   resetResultPanel();
 
-  analysisBusy = true;
   try {
-    var data = await queryOverpass(wgs[0], wgs[1]);
+    var data = await queryOverpass(lat, lng);
 
     var counts = {};
     CATEGORIES.forEach(function(c) { counts[c.id] = (data[c.id] || []).length; });
@@ -579,25 +580,202 @@ async function handleMapClick(e) {
     var result = calcLivability(counts);
 
     showPOIMarkers(data);
-
     updateResultPanel(counts, result);
 
-    var totalPOI = Object.values(counts).reduce(function(s,n){return s+n},0);
+    var totalPOI = 0;
+    Object.keys(counts).forEach(function(k) { totalPOI += counts[k]; });
     document.getElementById('statusBar').textContent =
-      '📍 (' + gcjLat.toFixed(4) + ', ' + gcjLng.toFixed(4) + ')  |  500m 内 ' + totalPOI + ' 个设施  |  等级 ' + result.grade + '  |  ' + result.totalScore + ' 分';
+      '📍 ' + label + '  |  500m 内 ' + totalPOI + ' 个设施  |  等级 ' + result.grade + '  |  ' + result.totalScore + ' 分';
 
     setStatus('ok', '分析完成');
   } catch (err) {
     console.error('Analysis failed:', err);
     showError('POI 查询失败: ' + err.message);
-    document.getElementById('statusBar').textContent = '❌ 查询失败，请稍后重试或换个位置点击';
+    document.getElementById('statusBar').textContent = '❌ 查询失败，请稍后重试或换个位置';
     document.getElementById('gradeLabel').textContent = '查询失败';
-    setStatus('error', '查询失败 — ' + err.message);
+    setStatus('error', '查询失败');
   } finally {
     setLoadingState(false);
     analysisBusy = false;
   }
 }
+
+// ═══════════════════════════════════════
+// Map Click Handler
+// ═══════════════════════════════════════
+function handleMapClick(e) {
+  var lat = e.latlng.lat;
+  var lng = e.latlng.lng;
+  var label = '(' + lat.toFixed(4) + ', ' + lng.toFixed(4) + ')';
+  analyzeLocation(lat, lng, label);
+}
+
+// ═══════════════════════════════════════
+// Nominatim Address Search
+// ═══════════════════════════════════════
+var searchTimer = null;
+var searchCache = {};
+var XIAN_BBOX = '108.82,34.15,109.12,34.38';
+
+function getTypeLabel(item) {
+  var t = item.type || '';
+  var cls = item.class || '';
+  if (t === 'administrative') return '区域';
+  if (t === 'amenity')        return cls === 'university' ? '大学' : '设施';
+  if (t === 'tourism')        return '景点';
+  if (t === 'highway' || t === 'railway') return '交通';
+  if (cls === 'shop' || cls === 'amenity') return '商业';
+  if (cls === 'highway')      return '道路';
+  if (cls === 'place')        return '地名';
+  if (cls === 'building')     return '建筑';
+  return t || '';
+}
+
+async function doSearch(query) {
+  var dropdown = document.getElementById('searchDropdown');
+  if (!query || query.trim().length === 0) {
+    dropdown.classList.remove('open');
+    return;
+  }
+
+  query = query.trim();
+
+  if (searchCache[query]) {
+    renderSearchResults(searchCache[query]);
+    return;
+  }
+
+  dropdown.innerHTML = '<div class="dd-loading">搜索中…</div>';
+  dropdown.classList.add('open');
+
+  var url = 'https://nominatim.openstreetmap.org/search' +
+    '?q=' + encodeURIComponent('西安 ' + query) +
+    '&format=jsonv2&limit=5&accept-language=zh' +
+    '&countrycodes=cn&bounded=1&viewbox=' + XIAN_BBOX;
+
+  try {
+    var resp = await fetch(url, {
+      headers: { 'User-Agent': 'XianLivabilityMap/3.0' },
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var results = await resp.json();
+
+    results = results.filter(function(r) {
+      return parseFloat(r.lat) > 34.0 && parseFloat(r.lat) < 34.5 &&
+             parseFloat(r.lon) > 108.7 && parseFloat(r.lon) < 109.3;
+    });
+
+    searchCache[query] = results;
+    renderSearchResults(results);
+  } catch (err) {
+    console.warn('Nominatim search error:', err);
+    dropdown.innerHTML = '<div class="dd-loading" style="color:#fc8181">搜索失败，请重试</div>';
+  }
+}
+
+function renderSearchResults(results) {
+  var dropdown = document.getElementById('searchDropdown');
+
+  if (results.length === 0) {
+    dropdown.innerHTML = '<div class="dd-loading">未找到匹配地址，请尝试其他关键词</div>';
+    dropdown.classList.add('open');
+    return;
+  }
+
+  var html = '<div class="dd-header">搜索结果</div>';
+  results.forEach(function(r, i) {
+    var typeLabel = getTypeLabel(r);
+    var icon = typeLabel === '景点' ? '🏛' : typeLabel === '交通' ? '🚏' : typeLabel === '大学' ? '🎓' : '📍';
+    html += '<div class="search-item" data-idx="' + i + '">' +
+      '<span class="si-icon">' + icon + '</span>' +
+      '<span class="si-text">' + escapeHtml(r.display_name) + '</span>' +
+      (typeLabel ? '<span class="si-type">' + typeLabel + '</span>' : '') +
+      '</div>';
+  });
+  dropdown.innerHTML = html;
+  dropdown.classList.add('open');
+
+  dropdown.querySelectorAll('.search-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      var idx = parseInt(this.getAttribute('data-idx'));
+      var r = results[idx];
+      selectSearchResult(r);
+    });
+  });
+}
+
+function selectSearchResult(r) {
+  var lat = parseFloat(r.lat);
+  var lng = parseFloat(r.lon);
+
+  document.getElementById('searchDropdown').classList.remove('open');
+  document.getElementById('searchInput').value = r.display_name;
+  updateSearchClear();
+
+  var label = extractShortName(r);
+
+  map.flyTo([lat, lng], 16, { duration: 1.2 });
+
+  map.once('moveend', function() {
+    analyzeLocation(lat, lng, label);
+  });
+}
+
+function extractShortName(r) {
+  var addr = r.address || {};
+  var parts = [];
+  if (addr.road)            parts.push(addr.road);
+  if (addr.house_number)    parts.push(addr.house_number);
+  if (addr.amenity)         parts.push(addr.amenity);
+  if (addr.tourism)         parts.push(addr.tourism);
+  if (addr.building)        parts.push(addr.building);
+  if (addr.suburb)          parts.push(addr.suburb);
+  if (addr.neighbourhood)   parts.push(addr.neighbourhood);
+  if (parts.length === 0) {
+    parts.push(r.display_name.split(',')[0]);
+  }
+  return parts.join('');
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+function updateSearchClear() {
+  var clear = document.getElementById('searchClear');
+  var val = document.getElementById('searchInput').value;
+  if (val) { clear.classList.add('visible'); }
+  else     { clear.classList.remove('visible'); }
+}
+
+// Search input events
+document.getElementById('searchInput').addEventListener('input', function() {
+  updateSearchClear();
+  clearTimeout(searchTimer);
+  var val = this.value;
+  if (val === '') {
+    document.getElementById('searchDropdown').classList.remove('open');
+    return;
+  }
+  searchTimer = setTimeout(function() { doSearch(val); }, 350);
+});
+
+document.getElementById('searchClear').addEventListener('click', function() {
+  var input = document.getElementById('searchInput');
+  input.value = '';
+  updateSearchClear();
+  document.getElementById('searchDropdown').classList.remove('open');
+  input.focus();
+});
+
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('searchWrap');
+  if (!wrap.contains(e.target)) {
+    document.getElementById('searchDropdown').classList.remove('open');
+  }
+});
 
 // ═══════════════════════════════════════
 // Init
@@ -606,9 +784,9 @@ map.on('click', handleMapClick);
 
 map.fitBounds([[34.15, 108.82], [34.38, 109.12]]);
 
-console.log('西安生活便利指数地图 — 就绪');
-console.log('瓦片: 高德 (GCJ-02)  |  POI: Overpass API (多镜像)');
-console.log('Overpass 镜像: ' + OVERPASS_ENDPOINTS.join(', '));
+console.log('西安生活便利指数地图 v3 — 就绪');
+console.log('瓦片: GeoQ 智图 (WGS-84)  |  POI: Overpass 多镜像');
+console.log('地址搜索: Nominatim (WGS-84)');
 </script>
 </body>
 </html>

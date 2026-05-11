@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -281,12 +281,14 @@ function _getPoiCache() {
     var data = POI_DATA[catId];
     var parts = data.c.split('|');
     var pois = [];
-    for (var i = 0; i < parts.length; i++) {
+    // Data format: pairs of "lat,lng" | nameIdx, step by 2
+    for (var i = 0; i < parts.length; i += 2) {
       var fields = parts[i].split(',');
+      var nameIdx = parseInt(parts[i + 1]);
       pois.push({
         lat: POI_DATA.base[0] + parseInt(fields[0]) / POI_DATA.s,
         lng: POI_DATA.base[1] + parseInt(fields[1]) / POI_DATA.s,
-        name: parseInt(fields[2]) >= 0 ? data.n[parseInt(fields[2])] : ''
+        name: nameIdx >= 0 ? data.n[nameIdx] : ''
       });
     }
     _poiCache[catId] = pois;
@@ -296,24 +298,31 @@ function _getPoiCache() {
 }
 
 function queryLocal(latWgs, lngWgs) {
-  var cache = _getPoiCache();
-  var enabledIds = getEnabledCategories();
-  var data = {};
-  var total = 0;
-  for (var ci = 0; ci < enabledIds.length; ci++) {
-    var catId = enabledIds[ci];
-    var pois = cache[catId];
-    var nearby = [];
-    for (var i = 0; i < pois.length; i++) {
-      if (haversineM(latWgs, lngWgs, pois[i].lat, pois[i].lng) <= 500) {
-        nearby.push(pois[i]);
+  try {
+    var cache = _getPoiCache();
+    var enabledIds = getEnabledCategories();
+    var data = {};
+    var total = 0;
+    for (var ci = 0; ci < enabledIds.length; ci++) {
+      var catId = enabledIds[ci];
+      var pois = cache[catId];
+      var nearby = [];
+      for (var i = 0; i < pois.length; i++) {
+        if (haversineM(latWgs, lngWgs, pois[i].lat, pois[i].lng) <= 500) {
+          nearby.push(pois[i]);
+        }
       }
+      data[catId] = nearby;
+      total += nearby.length;
     }
-    data[catId] = nearby;
-    total += nearby.length;
+    console.log('[Local] ' + total + ' POIs within 500m');
+    return data;
+  } catch (e) {
+    console.error('[Local] query error:', e);
+    var empty = {};
+    getEnabledCategories().forEach(function(id) { empty[id] = []; });
+    return empty;
   }
-  console.log('[Local] ' + total + ' POIs within 500m');
-  return data;
 }
 // ═══════════════════════════════════════
 // GCJ-02 ↔ WGS-84 coordinate conversion

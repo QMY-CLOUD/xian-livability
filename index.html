@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="referrer" content="no-referrer">
 <title>西安生活便利指数地图</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
@@ -332,6 +333,7 @@ async function queryOverpass(lat, lng) {
   });
   if (enabledCats.length === 0) return {};
 
+  // Cache key: rounded to 4 decimal places (~11m) + enabled categories
   var cacheKey = 'poi_' + lat.toFixed(4) + '_' + lng.toFixed(4) + '_' + enabledCats.map(function(c){return c.id}).join(',');
   try {
     var cached = sessionStorage.getItem(cacheKey);
@@ -375,8 +377,48 @@ async function queryOverpass(lat, lng) {
 }
 
 // ═══════════════════════════════════════
-// Haversine distance (meters)
+// GCJ-02 ↔ WGS-84 coordinate conversion
+// Amap tiles use GCJ-02; Overpass & Nominatim use WGS-84
 // ═══════════════════════════════════════
+var PI = Math.PI;
+var A = 6378245.0;
+var EE = 0.00669342162296594323;
+
+function _transformLat(x, y) {
+  var ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  ret += (20.0 * Math.sin(6.0 * x * PI) + 20.0 * Math.sin(2.0 * x * PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(y * PI) + 40.0 * Math.sin(y / 3.0 * PI)) * 2.0 / 3.0;
+  ret += (160.0 * Math.sin(y / 12.0 * PI) + 320.0 * Math.sin(y * PI / 30.0)) * 2.0 / 3.0;
+  return ret;
+}
+
+function _transformLng(x, y) {
+  var ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  ret += (20.0 * Math.sin(6.0 * x * PI) + 20.0 * Math.sin(2.0 * x * PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(x * PI) + 40.0 * Math.sin(x / 3.0 * PI)) * 2.0 / 3.0;
+  ret += (150.0 * Math.sin(x / 12.0 * PI) + 300.0 * Math.sin(x / 30.0 * PI)) * 2.0 / 3.0;
+  return ret;
+}
+
+function wgs84ToGcj02(lat, lng) {
+  if (lat < 0.01 || lng < 0.01) return [lat, lng];
+  var dLat = _transformLat(lng - 105.0, lat - 35.0);
+  var dLng = _transformLng(lng - 105.0, lat - 35.0);
+  var radLat = lat / 180.0 * PI;
+  var magic = Math.sin(radLat);
+  magic = 1 - EE * magic * magic;
+  var sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / ((A * (1 - EE)) / (magic * sqrtMagic) * PI);
+  dLng = (dLng * 180.0) / (A / sqrtMagic * Math.cos(radLat) * PI);
+  return [lat + dLat, lng + dLng];
+}
+
+function gcj02ToWgs84(lat, lng) {
+  if (lat < 0.01 || lng < 0.01) return [lat, lng];
+  var gcj = wgs84ToGcj02(lat, lng);
+  return [lat - (gcj[0] - lat), lng - (gcj[1] - lng)];
+}
+
 function haversineM(lat1, lng1, lat2, lng2) {
   var R = 6371000;
   var dLat = (lat2 - lat1) * Math.PI / 180;
@@ -435,7 +477,7 @@ function onFilterChange() {
 }
 
 // ═══════════════════════════════════════
-// Map Setup — GeoQ tiles (WGS-84, free, fast in China)
+// Map Setup — Amap tiles (GCJ-02, no-referrer)
 // ═══════════════════════════════════════
 var XIAN_CENTER = [34.26, 108.94];
 
@@ -446,9 +488,10 @@ var map = L.map('map', {
   attributionControl: false,
 });
 
-L.tileLayer('https://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineCommunity/MapServer/tile/{z}/{y}/{x}', {
+L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=7&x={x}&y={y}&z={z}', {
   maxZoom: 18,
   minZoom: 3,
+  subdomains: '1234',
 }).addTo(map);
 
 L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -476,7 +519,9 @@ function showPOIMarkers(data) {
     var cat = CATEGORIES.find(function(c) { return c.id === catId; });
     if (!cat) return;
     (data[catId] || []).forEach(function(f) {
-      var m = L.circleMarker([f.lat, f.lng], {
+      // Convert POI from WGS-84 (Overpass) to GCJ-02 (Amap tiles)
+      var gcj = wgs84ToGcj02(f.lat, f.lng);
+      var m = L.circleMarker([gcj[0], gcj[1]], {
         radius: 4,
         fillColor: cat.color,
         color: cat.color,
@@ -548,6 +593,12 @@ async function analyzeLocation(lat, lng, label) {
 
   clearAnalysisVisuals();
 
+  // lat/lng are GCJ-02 (Amap tiles); convert to WGS-84 for Overpass query
+  var wgs = gcj02ToWgs84(lat, lng);
+  var latWgs = wgs[0];
+  var lngWgs = wgs[1];
+
+  // Draw 500m buffer (GCJ-02, matches map tiles)
   currentCircle = L.circle([lat, lng], {
     radius: 500,
     color: '#63b3ed',
@@ -557,6 +608,7 @@ async function analyzeLocation(lat, lng, label) {
     dashArray: '6 4',
   }).addTo(map);
 
+  // Marker (GCJ-02)
   currentClickMarker = L.circleMarker([lat, lng], {
     radius: 6,
     fillColor: '#fff',
@@ -572,7 +624,7 @@ async function analyzeLocation(lat, lng, label) {
   resetResultPanel();
 
   try {
-    var data = await queryOverpass(lat, lng);
+    var data = await queryOverpass(latWgs, lngWgs);
 
     var counts = {};
     CATEGORIES.forEach(function(c) { counts[c.id] = (data[c.id] || []).length; });
@@ -640,6 +692,7 @@ async function doSearch(query) {
 
   query = query.trim();
 
+  // Check cache
   if (searchCache[query]) {
     renderSearchResults(searchCache[query]);
     return;
@@ -655,11 +708,12 @@ async function doSearch(query) {
 
   try {
     var resp = await fetch(url, {
-      headers: { 'User-Agent': 'XianLivabilityMap/3.0' },
+      headers: { 'User-Agent': 'XianLivabilityMap/3.1' },
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     var results = await resp.json();
 
+    // Filter to Xi'an area
     results = results.filter(function(r) {
       return parseFloat(r.lat) > 34.0 && parseFloat(r.lat) < 34.5 &&
              parseFloat(r.lon) > 108.7 && parseFloat(r.lon) < 109.3;
@@ -695,6 +749,7 @@ function renderSearchResults(results) {
   dropdown.innerHTML = html;
   dropdown.classList.add('open');
 
+  // Bind click
   dropdown.querySelectorAll('.search-item').forEach(function(item) {
     item.addEventListener('click', function() {
       var idx = parseInt(this.getAttribute('data-idx'));
@@ -705,19 +760,28 @@ function renderSearchResults(results) {
 }
 
 function selectSearchResult(r) {
-  var lat = parseFloat(r.lat);
-  var lng = parseFloat(r.lon);
+  var latWgs = parseFloat(r.lat);
+  var lngWgs = parseFloat(r.lon);
 
+  // Convert Nominatim WGS-84 → GCJ-02 for Amap display
+  var gcj = wgs84ToGcj02(latWgs, lngWgs);
+  var latGcj = gcj[0];
+  var lngGcj = gcj[1];
+
+  // Close dropdown & clear input
   document.getElementById('searchDropdown').classList.remove('open');
   document.getElementById('searchInput').value = r.display_name;
   updateSearchClear();
 
+  // Short label for status bar
   var label = extractShortName(r);
 
-  map.flyTo([lat, lng], 16, { duration: 1.2 });
+  // Fly to location (GCJ-02)
+  map.flyTo([latGcj, lngGcj], 16, { duration: 1.2 });
 
+  // Analyze after fly completes (pass GCJ-02; analyzeLocation converts back for Overpass)
   map.once('moveend', function() {
-    analyzeLocation(lat, lng, label);
+    analyzeLocation(latGcj, lngGcj, label);
   });
 }
 
@@ -770,6 +834,7 @@ document.getElementById('searchClear').addEventListener('click', function() {
   input.focus();
 });
 
+// Close dropdown when clicking outside
 document.addEventListener('click', function(e) {
   var wrap = document.getElementById('searchWrap');
   if (!wrap.contains(e.target)) {
@@ -785,8 +850,8 @@ map.on('click', handleMapClick);
 map.fitBounds([[34.15, 108.82], [34.38, 109.12]]);
 
 console.log('西安生活便利指数地图 v3 — 就绪');
-console.log('瓦片: GeoQ 智图 (WGS-84)  |  POI: Overpass 多镜像');
-console.log('地址搜索: Nominatim (WGS-84)');
+console.log('瓦片: 高德 (GCJ-02, no-referrer)  |  POI: Overpass 多镜像 (WGS-84)');
+console.log('地址搜索: Nominatim (WGS-84)  |  坐标转换: GCJ-02 ↔ WGS-84');
 </script>
 </body>
 </html>

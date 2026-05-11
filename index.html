@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>西安生活便利指数地图</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#0b1120;overflow:hidden;height:100vh;width:100vw}
+#map{width:100%;height:100vh}
+
+/* ── Top Bar ── */
+.top-bar{
+  position:fixed;top:0;left:0;right:0;z-index:2000;
+  background:linear-gradient(135deg,rgba(11,17,32,0.96),rgba(20,30,52,0.96));
+  backdrop-filter:blur(16px);border-bottom:1px solid rgba(99,179,237,0.12);
+  padding:12px 20px;display:flex;align-items:center;justify-content:space-between;
+}
+.top-bar h1{font-size:18px;font-weight:700;color:#e2e8f0;letter-spacing:0.3px}
+.top-bar h1 .accent{color:#63b3ed}
+.loading-tag{
+  font-size:12px;color:#a0aec0;display:flex;align-items:center;gap:6px;
+  transition:opacity .3s;
+}
+.loading-tag.done{color:#68d391}
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,0.15);border-top:2px solid #63b3ed;border-radius:50%;animation:spin .8s linear infinite}
+.loading-tag.done .spinner{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pulse-dot{width:7px;height:7px;background:#68d391;border-radius:50%;display:none}
+.loading-tag.done .pulse-dot{display:block}
+
+/* ── POI Toggle Panel ── */
+.toggle-panel{
+  position:fixed;top:100px;left:16px;z-index:2000;
+  background:rgba(11,17,32,0.92);backdrop-filter:blur(16px);
+  border-radius:14px;padding:14px 16px;
+  border:1px solid rgba(99,179,237,0.15);
+  box-shadow:0 12px 40px rgba(0,0,0,0.5);
+  display:flex;flex-direction:column;gap:6px;min-width:150px;
+}
+.toggle-row{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:#cbd5e0;user-select:none;transition:color .15s}
+.toggle-row:hover{color:#f7fafc}
+.toggle-row input[type=checkbox]{display:none}
+.toggle-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;opacity:0.45;transition:opacity .2s}
+.toggle-row.on .toggle-dot{opacity:1}
+.toggle-label{flex:1;font-variant-numeric:tabular-nums}
+.toggle-count{font-size:11px;color:#718096;font-variant-numeric:tabular-nums}
+
+/* ── Result Panel ── */
+.result-panel{
+  position:fixed;top:100px;right:16px;z-index:2000;
+  background:rgba(11,17,32,0.94);backdrop-filter:blur(16px);
+  border-radius:14px;padding:0;width:220px;
+  border:1px solid rgba(99,179,237,0.15);
+  box-shadow:0 12px 40px rgba(0,0,0,0.5);
+  opacity:0;transform:translateY(-8px);transition:opacity .3s,transform .3s;pointer-events:none;
+}
+.result-panel.visible{opacity:1;transform:translateY(0);pointer-events:auto}
+.result-header{padding:16px 18px 10px;border-bottom:1px solid rgba(255,255,255,0.06)}
+.result-header .grade{
+  font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px;
+}
+.result-header .grade.A{color:#68d391}
+.result-header .grade.B{color:#f6e05e}
+.result-header .grade.C{color:#fc8181}
+.result-header .grade-label{font-size:12px;color:#a0aec0;margin-top:2px}
+.result-body{padding:12px 18px 16px}
+.result-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:13px;color:#cbd5e0;border-bottom:1px solid rgba(255,255,255,0.04)}
+.result-row:last-child{border-bottom:none}
+.result-row .cat-dot{width:8px;height:8px;border-radius:2px;margin-right:6px;flex-shrink:0}
+.result-row .cat-name{flex:1}
+.result-row .cat-count{font-weight:600;color:#f7fafc}
+.result-footer{padding:10px 18px 14px;border-top:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;font-size:13px}
+.result-footer .score{color:#f7fafc;font-weight:700}
+
+/* ── Status Bar ── */
+.status-bar{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:2000;
+  background:rgba(11,17,32,0.85);backdrop-filter:blur(12px);
+  border-radius:24px;padding:8px 20px;
+  border:1px solid rgba(99,179,237,0.12);
+  font-size:12px;color:#718096;letter-spacing:0.3px;
+}
+
+/* ── Loading Overlay ── */
+.loading-overlay{
+  position:fixed;inset:0;z-index:3000;background:rgba(11,17,32,0.85);
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;
+  transition:opacity .4s;pointer-events:none;
+}
+.loading-overlay.hidden{opacity:0}
+.loading-overlay .spinner-lg{width:36px;height:36px;border:3px solid rgba(255,255,255,0.1);border-top:3px solid #63b3ed;border-radius:50%;animation:spin .9s linear infinite}
+.loading-overlay p{font-size:14px;color:#a0aec0}
+
+/* ── Leaflet overrides ── */
+.leaflet-tooltip{
+  background:rgba(11,17,32,0.93)!important;border:1px solid rgba(99,179,237,0.2)!important;
+  border-radius:8px!important;color:#e2e8f0!important;padding:5px 10px!important;
+  font-family:inherit!important;font-size:12px!important;box-shadow:0 4px 12px rgba(0,0,0,0.4)!important
+}
+.leaflet-tooltip::before{border-top-color:rgba(99,179,237,0.2)!important}
+.marker-cluster-small{background:rgba(99,179,237,0.2)!important;border:1px solid rgba(99,179,237,0.3)!important}
+.marker-cluster-small div{background:rgba(99,179,237,0.7)!important;color:#0b1120!important;font-weight:600!important}
+.marker-cluster-medium{background:rgba(99,179,237,0.25)!important}
+.marker-cluster-medium div{background:rgba(99,179,237,0.8)!important}
+.marker-cluster-large{background:rgba(99,179,237,0.3)!important}
+.marker-cluster-large div{background:rgba(99,179,237,0.85)!important}
+
+@media(max-width:640px){
+  .top-bar{padding:10px 14px}
+  .top-bar h1{font-size:15px}
+  .toggle-panel{top:88px;left:6px;padding:10px 12px;gap:3px;min-width:130px}
+  .toggle-row{font-size:12px}
+  .result-panel{top:88px;right:6px;width:180px}
+  .result-header .grade{font-size:38px}
+  .result-body{padding:10px 14px}
+  .status-bar{bottom:10px;font-size:11px;padding:6px 14px}
+}
+</style>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner-lg"></div>
+  <p>正在从 OpenStreetMap 获取 POI 数据…</p>
+</div>
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <h1>📍 西安<span class="accent">生活便利指数</span>地图</h1>
+  <div class="loading-tag" id="loadingTag">
+    <div class="spinner"></div><div class="pulse-dot"></div>
+    <span id="loadingText">加载数据中…</span>
+  </div>
+</div>
+
+<!-- POI Toggle Panel -->
+<div class="toggle-panel" id="togglePanel">
+  <label class="toggle-row on" id="toggleSupermarket">
+    <input type="checkbox" checked onchange="toggleLayer('supermarket')">
+    <span class="toggle-dot" style="background:#f97316;box-shadow:0 0 6px #f97316"></span>
+    <span class="toggle-label">超市</span>
+    <span class="toggle-count" id="cntSupermarket">--</span>
+  </label>
+  <label class="toggle-row on" id="toggleBus">
+    <input type="checkbox" checked onchange="toggleLayer('bus')">
+    <span class="toggle-dot" style="background:#3b82f6;box-shadow:0 0 6px #3b82f6"></span>
+    <span class="toggle-label">公交站</span>
+    <span class="toggle-count" id="cntBus">--</span>
+  </label>
+  <label class="toggle-row on" id="toggleRestaurant">
+    <input type="checkbox" checked onchange="toggleLayer('restaurant')">
+    <span class="toggle-dot" style="background:#ef4444;box-shadow:0 0 6px #ef4444"></span>
+    <span class="toggle-label">餐馆</span>
+    <span class="toggle-count" id="cntRestaurant">--</span>
+  </label>
+  <label class="toggle-row on" id="togglePark">
+    <input type="checkbox" checked onchange="toggleLayer('park')">
+    <span class="toggle-dot" style="background:#22c55e;box-shadow:0 0 6px #22c55e"></span>
+    <span class="toggle-label">公园</span>
+    <span class="toggle-count" id="cntPark">--</span>
+  </label>
+</div>
+
+<!-- Result Panel -->
+<div class="result-panel" id="resultPanel">
+  <div class="result-header">
+    <div class="grade" id="gradeLetter">--</div>
+    <div class="grade-label" id="gradeLabel">点击地图进行分析</div>
+  </div>
+  <div class="result-body">
+    <div class="result-row"><span class="cat-dot" style="background:#f97316"></span><span class="cat-name">超市 / 便利店</span><span class="cat-count" id="rSupermarket">--</span></div>
+    <div class="result-row"><span class="cat-dot" style="background:#3b82f6"></span><span class="cat-name">公交站</span><span class="cat-count" id="rBus">--</span></div>
+    <div class="result-row"><span class="cat-dot" style="background:#ef4444"></span><span class="cat-name">餐馆</span><span class="cat-count" id="rRestaurant">--</span></div>
+    <div class="result-row"><span class="cat-dot" style="background:#22c55e"></span><span class="cat-name">公园 / 绿地</span><span class="cat-count" id="rPark">--</span></div>
+  </div>
+  <div class="result-footer">
+    <span style="color:#a0aec0">综合评分</span>
+    <span class="score" id="totalScore">--</span>
+  </div>
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">👆 点击地图任意位置，分析周边 500 米生活便利度</div>
+
+<!-- Map -->
+<div id="map"></div>
+
+<!-- CDN Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<script>
+// ═══════════════════════════════════════
+// Config
+// ═══════════════════════════════════════
+const XIAN_CENTER = [34.26, 108.94];
+const CACHE_KEY = 'xian_poi_cache_v2';
+const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+const CATEGORIES = [
+  {
+    id: 'supermarket',
+    name: '超市',
+    color: '#f97316',
+    osmTags: { shop: ['supermarket','convenience'] },
+    weight: 0.30,
+    scoring: [
+      { max: 0, pts: 0 },
+      { max: 1, pts: 30 },
+      { max: 2, pts: 60 },
+      { min: 3, pts: 100 },
+    ],
+  },
+  {
+    id: 'bus',
+    name: '公交站',
+    color: '#3b82f6',
+    osmTags: { highway: ['bus_stop'], public_transport: ['platform','stop_position'] },
+    weight: 0.25,
+    scoring: [
+      { max: 0, pts: 0 },
+      { max: 2, pts: 30 },
+      { max: 4, pts: 60 },
+      { min: 5, pts: 100 },
+    ],
+  },
+  {
+    id: 'restaurant',
+    name: '餐馆',
+    color: '#ef4444',
+    osmTags: { amenity: ['restaurant','fast_food','cafe','food_court'] },
+    weight: 0.25,
+    scoring: [
+      { max: 2, pts: 0 },
+      { max: 5, pts: 30 },
+      { max: 10, pts: 60 },
+      { min: 11, pts: 100 },
+    ],
+  },
+  {
+    id: 'park',
+    name: '公园',
+    color: '#22c55e',
+    osmTags: { leisure: ['park','garden'], landuse: ['recreation_ground'] },
+    weight: 0.20,
+    scoring: [
+      { max: 0, pts: 0 },
+      { max: 1, pts: 50 },
+      { min: 2, pts: 100 },
+    ],
+  },
+];
+
+// ═══════════════════════════════════════
+// Haversine distance (meters)
+// ═══════════════════════════════════════
+function haversineM(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) ** 2 +
+    Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+    Math.sin(dLng/2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ═══════════════════════════════════════
+// Overpass API Query
+// ═══════════════════════════════════════
+function buildOverpassQuery() {
+  const bbox = [34.15, 108.82, 34.38, 109.12]; // S,W,N,E
+  const bb = bbox.join(',');
+  const parts = [];
+
+  CATEGORIES.forEach(cat => {
+    Object.entries(cat.osmTags).forEach(([key, values]) => {
+      values.forEach(v => {
+        parts.push(`node["${key}"="${v}"](${bb});`);
+        // For parks also query ways
+        if (cat.id === 'park') {
+          parts.push(`way["${key}"="${v}"](${bb});`);
+        }
+      });
+    });
+  });
+
+  return `[out:json][timeout:30];(${parts.join('')});out center;`;
+}
+
+// ═══════════════════════════════════════
+// Categorize OSM element
+// ═══════════════════════════════════════
+function categorizeOSM(el) {
+  const t = el.tags || {};
+  for (const cat of CATEGORIES) {
+    for (const [key, values] of Object.entries(cat.osmTags)) {
+      if (t[key] && values.includes(t[key])) return cat.id;
+    }
+  }
+  return null;
+}
+
+function getCoord(el) {
+  if (el.lat != null && el.lon != null) return [el.lat, el.lon];
+  if (el.center) return [el.center.lat, el.center.lon];
+  return null;
+}
+
+// ═══════════════════════════════════════
+// Fetch & Cache POI Data
+// ═══════════════════════════════════════
+async function fetchPOIData() {
+  // Check localStorage cache
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Date.now() - parsed.timestamp < CACHE_TTL) {
+        console.log(`[Cache] Using cached POI data (${parsed.timestamp})`);
+        return parsed.data;
+      }
+    }
+  } catch(e) { /* ignore */ }
+
+  console.log('[Overpass] Fetching POI data...');
+  const query = buildOverpassQuery();
+
+  const resp = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'data=' + encodeURIComponent(query),
+  });
+
+  if (!resp.ok) throw new Error(`Overpass API error: ${resp.status}`);
+
+  const json = await resp.json();
+  const elements = json.elements || [];
+  console.log(`[Overpass] Received ${elements.length} elements`);
+
+  // Categorize and build GeoJSON-like feature arrays
+  const data = {};
+  CATEGORIES.forEach(c => { data[c.id] = []; });
+
+  elements.forEach(el => {
+    const cat = categorizeOSM(el);
+    const coord = getCoord(el);
+    if (cat && coord) {
+      data[cat].push({
+        lat: coord[0],
+        lng: coord[1],
+        name: (el.tags || {}).name || '',
+      });
+    }
+  });
+
+  // Log counts
+  CATEGORIES.forEach(c => console.log(`  ${c.name}: ${data[c.id].length}`));
+
+  // Cache
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data }));
+  } catch(e) { /* quota exceeded etc */ }
+
+  return data;
+}
+
+// ═══════════════════════════════════════
+// Score Calculation
+// ═══════════════════════════════════════
+function calcCategoryScore(cat, count) {
+  for (const rule of cat.scoring) {
+    if (rule.min != null && count >= rule.min) return rule.pts;
+    if (rule.max != null && count <= rule.max) return rule.pts;
+  }
+  return 0;
+}
+
+function calcLivability(counts) {
+  let totalScore = 0;
+  const details = [];
+
+  CATEGORIES.forEach(cat => {
+    const count = counts[cat.id] || 0;
+    const pts = calcCategoryScore(cat, count);
+    const weighted = pts * cat.weight;
+    totalScore += weighted;
+    details.push({ id: cat.id, name: cat.name, count, pts, weighted });
+  });
+
+  totalScore = Math.round(totalScore);
+  let grade, gradeLabel;
+  if (totalScore >= 65) { grade = 'A'; gradeLabel = '生活便利 — 配套齐全'; }
+  else if (totalScore >= 40) { grade = 'B'; gradeLabel = '一般便利 — 基本满足'; }
+  else { grade = 'C'; gradeLabel = '待改善 — 配套不足'; }
+
+  return { grade, gradeLabel, totalScore, details };
+}
+
+// ═══════════════════════════════════════
+// Map & Layers
+// ═══════════════════════════════════════
+const map = L.map('map', {
+  center: XIAN_CENTER,
+  zoom: 12,
+  zoomControl: false,
+  attributionControl: false,
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  subdomains: 'abcd',
+  maxZoom: 19,
+}).addTo(map);
+
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+// Layer groups
+const poiLayers = {};       // L.markerClusterGroup per category
+const poiData = {};         // raw feature arrays per category
+let currentCircle = null;   // current analysis circle on map
+let currentMarker = null;   // click position marker
+
+function createMarkerIcon(color) {
+  return L.divIcon({
+    className: '',
+    html: `<svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="${color}" opacity="0.85"/></svg>`,
+    iconSize: [10, 10],
+    iconAnchor: [5, 5],
+  });
+}
+
+function buildLayers(data) {
+  CATEGORIES.forEach(cat => {
+    const features = data[cat.id] || [];
+    poiData[cat.id] = features;
+
+    const cluster = L.markerClusterGroup({
+      maxClusterRadius: 40,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      disableClusteringAtZoom: 17,
+      iconCreateFunction: function(clus) {
+        const count = clus.getChildCount();
+        let size = 'small';
+        if (count >= 50) size = 'large';
+        else if (count >= 15) size = 'medium';
+        return L.divIcon({
+          html: `<div style="
+            background:${cat.color}22;border:1.5px solid ${cat.color}55;border-radius:50%;
+            width:${size==='large'?44:size==='medium'?36:28}px;
+            height:${size==='large'?44:size==='medium'?36:28}px;
+            display:flex;align-items:center;justify-content:center;
+            font-size:${size==='large'?13:11}px;font-weight:700;color:${cat.color};
+            backdrop-filter:blur(4px);
+          ">${count}</div>`,
+          iconSize: L.point(size==='large'?44:size==='medium'?36:28, size==='large'?44:size==='medium'?36:28),
+        });
+      },
+    });
+
+    features.forEach(f => {
+      const m = L.marker([f.lat, f.lng], { icon: createMarkerIcon(cat.color) });
+      if (f.name) m.bindTooltip(f.name, { direction: 'top', offset: [0, -6] });
+      cluster.addLayer(m);
+    });
+
+    cluster.addTo(map);
+    poiLayers[cat.id] = cluster;
+    document.getElementById('cnt' + cat.id.charAt(0).toUpperCase() + cat.id.slice(1)).textContent = features.length;
+  });
+}
+
+// Toggle layer visibility
+function toggleLayer(id) {
+  const row = document.getElementById('toggle' + id.charAt(0).toUpperCase() + id.slice(1));
+  if (!row) return;
+  const checked = row.querySelector('input').checked;
+  if (checked) {
+    poiLayers[id].addTo(map);
+    row.classList.add('on');
+  } else {
+    map.removeLayer(poiLayers[id]);
+    row.classList.remove('on');
+  }
+}
+
+// ═══════════════════════════════════════
+// Click Analysis
+// ═══════════════════════════════════════
+function handleMapClick(e) {
+  const { lat, lng } = e.latlng;
+
+  // Clear previous
+  if (currentCircle) map.removeLayer(currentCircle);
+  if (currentMarker) map.removeLayer(currentMarker);
+
+  // Draw 500m buffer circle
+  currentCircle = L.circle([lat, lng], {
+    radius: 500,
+    color: '#63b3ed',
+    fillColor: '#63b3ed',
+    fillOpacity: 0.12,
+    weight: 2,
+    dashArray: '6 4',
+  }).addTo(map);
+
+  // Click marker
+  currentMarker = L.circleMarker([lat, lng], {
+    radius: 6,
+    fillColor: '#fff',
+    color: '#63b3ed',
+    weight: 3,
+    fillOpacity: 1,
+  }).addTo(map);
+
+  // Count POIs within 500m
+  const counts = {};
+  CATEGORIES.forEach(c => { counts[c.id] = 0; });
+
+  CATEGORIES.forEach(cat => {
+    (poiData[cat.id] || []).forEach(f => {
+      if (haversineM(lat, lng, f.lat, f.lng) <= 500) {
+        counts[cat.id]++;
+      }
+    });
+  });
+
+  // Calc score
+  const result = calcLivability(counts);
+
+  // Update result panel
+  document.getElementById('gradeLetter').textContent = result.grade;
+  document.getElementById('gradeLetter').className = 'grade ' + result.grade;
+  document.getElementById('gradeLabel').textContent = result.gradeLabel;
+  document.getElementById('rSupermarket').textContent = counts.supermarket + ' 个';
+  document.getElementById('rBus').textContent = counts.bus + ' 个';
+  document.getElementById('rRestaurant').textContent = counts.restaurant + ' 个';
+  document.getElementById('rPark').textContent = counts.park + ' 个';
+  document.getElementById('totalScore').textContent = result.totalScore + ' 分';
+  document.getElementById('resultPanel').classList.add('visible');
+
+  // Update status
+  document.querySelector('.status-bar').textContent =
+    `📍 (${lat.toFixed(4)}, ${lng.toFixed(4)})  |  500m 缓冲区  |  等级 ${result.grade}  |  ${result.totalScore} 分`;
+}
+
+// ═══════════════════════════════════════
+// Init
+// ═══════════════════════════════════════
+async function init() {
+  map.on('click', handleMapClick);
+
+  try {
+    const data = await fetchPOIData();
+    buildLayers(data);
+
+    // Hide loading
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    const tag = document.getElementById('loadingTag');
+    tag.classList.add('done');
+    const total = Object.values(data).reduce((s, a) => s + a.length, 0);
+    document.getElementById('loadingText').textContent = `已加载 ${total.toLocaleString()} 个 POI`;
+  } catch (err) {
+    console.error('Failed to load POI data:', err);
+    document.getElementById('loadingOverlay').querySelector('p').textContent =
+      'POI 数据加载失败，请检查网络后刷新。仍可使用地图分析功能。';
+    document.getElementById('loadingOverlay').querySelector('.spinner-lg').style.display = 'none';
+    setTimeout(() => document.getElementById('loadingOverlay').classList.add('hidden'), 2500);
+
+    const tag = document.getElementById('loadingTag');
+    document.getElementById('loadingText').textContent = 'POI 数据加载失败';
+    tag.style.color = '#fc8181';
+
+    // Still init empty layers so the map works
+    const emptyData = {};
+    CATEGORIES.forEach(c => { emptyData[c.id] = []; });
+    buildLayers(emptyData);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
